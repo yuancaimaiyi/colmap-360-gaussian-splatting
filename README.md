@@ -11,6 +11,11 @@ ii. 将colmap结果转为opensfm 格式
 <img width="1231" alt="image" src="https://github.com/user-attachments/assets/fb270488-3cd1-43d2-bc6b-3ebc29990e6d">
 iii. 直接利用360-panorama gs 去训练   
 
+
+# 代码步骤   
+(1) python3 transform_opensfm.py -path ***************    
+ 注意：path 路径下包括sfm的结果 0 和 全景图像images    
+(2) python3 train -s /opensfm --panorama --output   
 # 麦当劳支持    
 如果你觉得这个仓库对你有用的话，可以打点麦当劳一份作为辛苦费，谢谢   
 <img width="307" alt="image" src="https://github.com/user-attachments/assets/01ae0fbb-6f6b-48bc-a651-e2fc4ae6af93">
