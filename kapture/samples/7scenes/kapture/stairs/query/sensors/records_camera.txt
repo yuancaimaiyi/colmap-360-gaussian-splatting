@@ -1,0 +1,8 @@
+# kapture format: 1.1
+# timestamp, device_id, image_path
+0, kinect_rgb, seq-01/frame-000000.color.jpg
+1, kinect_rgb, seq-01/frame-000001.color.jpg
+2, kinect_rgb, seq-01/frame-000002.color.jpg
+9, kinect_rgb, seq-04/frame-000000.color.jpg
+10, kinect_rgb, seq-04/frame-000001.color.jpg
+11, kinect_rgb, seq-04/frame-000002.color.jpg

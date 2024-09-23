@@ -1,0 +1,613 @@
+= kapture datasets
+:sectnums:
+:sectnumlevels: 1
+:toc:
+:toclevels: 1
+
+This section explains how to convert some existing datasets to __kapture__ format.
+
+Note that there are already many datasets (including the ones from visuallocalization.net) directly available in kapture
+(no need to manually convert them).
+See : https://github.com/naver/kapture/blob/main/doc/tutorial.adoc#download-a-dataset
+
+Please also note that __kapture__ provides some generic importers and exporters for some formats
+(COLMAP, OpenMVG, OpenSfm, NVM, Bundler, ROSbag...).
+See: https://github.com/naver/kapture#kapture-tools[table of supported formats]
+
+== 7-scenes
+
+Here we describes how to import a scene from 7-scenes into kapture format.
+The import process uses the images and poses.
+Other data (e.g. depth maps) are ignored.
+During importation, a scene is split into mapping and query.
+You can apply the conversion to all the 7 scenes.
+
+The complete dataset information is available at:
+https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/
+
+=== Convert from original dataset
+If you download one scene, you can convert every sequence into a kapture model using the kapture_import_7scenes.py script.
+
+1) Download the 7 scenes from the https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/[microsoft] website,
+
+[source,bash]
+----
+cd /<mydatasets>/7-scenes
+curl http://download.microsoft.com/download/2/8/5/28564B23-0828-408F-8631-23B1EFF1DAC8/heads.zip -o heads.zip
+----
+
+2) unzip it all
+
+On ubuntu, use the following commands:
+
+[source,bash]
+----
+unzip heads.zip
+cd heads
+# unzip all inner zip files
+find . -iname "*.zip" -print0 | xargs -n1 -0 -I {} unzip {}
+rm *.zip ../heads.zip # optionally cleans all zip files
+----
+
+A scene has the following tree structure:
+[source,txt]
+----
+<scene>
+├── <scene>.png
+├── <seq-##>
+│   ├── frame-000000.color.png
+│   ├── frame-000000.depth.png
+│   ├── frame-000000.pose.txt
+│   ├── frame-000001.color.png
+│   ├── frame-000001.depth.png
+│   ├── frame-000001.pose.txt
+│   ├── frame-000002.color.png
+..
+├── TestSplit.txt
+└── TrainSplit.txt
+----
+
+The `TestSplit.txt` and `TrainSplit.txt` files respectively contain the sequences to be used for query or mapping.
+
+3) Import to kapture
+
+I this section, we will see how to import the all scene, using mapping/query split.
+For every scene (`stairs` in this example), import mapping and query like:
+
+[source,bash]
+----
+kapture_import_7scenes.py -i /<mydatasets>/7-scenes/stairs -o /<mykaptures>/7-scenes/stairs/mapping -p mapping
+----
+
+NOTE: You can also import without splitting mapping and query. In that case all data are merged into a single dataset.
+You can also import a single sequence passing directly the full path to it (e.g. `/<mydatasets>/7-scenes/stairs/seq-01`).
+
+You can easily process all scenes/split at once, using https://www.gnu.org/software/parallel/[gnu parallel]:
+----
+parallel \
+kapture_import_7scenes.py -v info -i /<mydatasets>/7-scenes/{1} /<mykaptures>/7-scenes/{1}/{2} -p {2} \
+::: chess fire heads office pumpkin redkitchen stairs ::: query mapping
+----
+
+== Aachen-Day-Night-v1.1
+
+We imported all mapping and query images as well as the provided reference poses from the original dataset. Note that v1.1 is based on the original version. More information about that can be found on the dataset owners' webpage.
+
+=== Convert from original dataset
+
+Aachen-Day-Night-v1.1 is available here: https://data.ciirc.cvut.cz/public/projects/2020VisualLocalization/Aachen-Day-Night/
+
+1) Download the following data from the original source:
+
+- images/database_and_query_images.zip
+- aachen_v1_1.zip
+- queries/day_time_queries_with_intrinsics.txt
+
+2) Prepare data
+
+- Extract the two archives.
+- Create a folder named 'aachenv11' and prepare (move/copy the just downloaded data) the following folder structure:
+
+[source,txt]
+----
+aachenv11
+|-- images
+|   |-- db                                      (from images/database_and_query_images.zip)
+|   |-- sequences                               (from aachen_v1_1.zip)
+|   |   |-- gopro3_undistorted
+|   |   |-- nexus4_sequences
+|   |   |   |-- sequence_1
+|   |   |   |-- ...
+|   |   |   |-- sequence_8
+|   |-- query
+|   |   |-- day                                 (from images/database_and_query_images.zip)
+|   |   |   |-- milestone
+|   |   |   |-- nexus4
+|   |   |   |-- nexus5x
+|   |   |-- night
+|   |   |   |-- milestone                       (from images/database_and_query_images.zip)
+|   |   |   |-- nexus5x                         (from images/database_and_query_images.zip)
+|   |   |   |-- nexus5x_additional_night        (from aachen_v1_1.zip)
+|-- day_time_queries_with_intrinsics.txt
+|-- night_time_queries_with_intrinsics.txt      (from aachen_v1_1.zip)
+|-- 3D-models                                   (from aachen_v1_1.zip)
+|   |-- aachen_v1_1
+|-- kapture
+----
+
+3) Create the kapture version of the query data
+
+Call this from aachenv11:
+
+[source,bash]
+----
+# note: on windows, this requires admin rights for symlinks
+# see https://docs.python.org/3.6/library/os.html#os.symlink
+kapture_import_image_list.py -v debug -i day_time_queries_with_intrinsics.txt -o kapture/query_day -im images
+kapture_import_image_list.py -v debug -i night_time_queries_with_intrinsics.txt -o kapture/query_night -im images
+
+# if you can't use symlinks, add this to the two commands: --image_transfer copy
+----
+
+Now you have separate kapture folders for day-time and night-time queries. If you would like to have one single kapture, run from aachenv11:
+[source,bash]
+----
+kapture_merge.py -v debug -i kapture/query_day kapture/query_night -o kapture/query
+----
+
+4) Create the kapture for the mapping images
+
+- Convert the COLMAP reconstructions from .bin to .txt. Call this from aachenv11:
+[source,bash]
+----
+colmap model_converter --input_path 3D-models/aachen_v_1_1 --output_path 3D-models/aachen_v_1_1 --output_type TXT
+----
+
+- Convert COLMAP model to kapture. Call this from aachenv11:
+[source,bash]
+----
+# note: on windows, this requires admin rights for symlinks
+# see https://docs.python.org/3.6/library/os.html#os.symlink
+kapture_import_colmap.py -v debug -txt 3D-models/aachen_v_1_1/ -im images -o kapture/mapping --skip_reconstruction
+
+# if you can't use symlinks, add this to the command: --image_transfer copy
+----
+
+
+== Baidu
+
+The Baidu image-based localization dataset, "A Dataset for Benchmarking Image based Localization" by Xun Sun, Yuanfan Xie, Pei Luo and Liang Wang: https://sites.google.com/site/xunsunhomepage/
+
+For this dataset, kapture_import_IDL_dataset_cvpr17.py creates one sensor per image
+
+=== Convert from original dataset
+
+Once downloaded, you have the following files:
+
+[source,txt]
+----
+IDL_dataset_cvpr17_3852
+├─ query_gt/
+│  ├─ cdm_20150523_101338.camera
+│  ├─ ...
+│  └─ xyf_IMG_4097.camera
+├─ query_images_undistort/
+│  ├─ cdm_20150523_101338.jpg
+│  ├─ ...
+│  └─ xyf_IMG_4097.jpg
+├─ training_gt/
+│  ├─ nikon5300a_undistor_DSC_0036.camera
+│  ├─ ...
+│  └─ nikon5300b_undistor_DSC_0391.camera
+├─ training_images_undistort/
+│  ├─ nikon5300a_undistor_DSC_0036.jpg
+│  ├─ ...
+│  └─ nikon5300b_undistor_DSC_0391.jpg
+├─ mall.pcd # not used when importing to kapture
+└─ readme.txt
+----
+
+Run
+[source,bash]
+----
+# note: on windows, this requires admin rights for symlinks
+# see https://docs.python.org/3.6/library/os.html#os.symlink
+kapture_import_IDL_dataset_cvpr17.py -v info -i ./IDL_dataset_cvpr17_3852/training_images_undistort -gt ./IDL_dataset_cvpr17_3852/training_gt -o ./kapture/IDL_dataset_cvpr17_3852/mapping
+kapture_import_IDL_dataset_cvpr17.py -v info -i ./IDL_dataset_cvpr17_3852/query_images_undistort -gt ./IDL_dataset_cvpr17_3852/query_gt -o ./kapture/IDL_dataset_cvpr17_3852/query
+
+# if you can't use symlinks, add this to the commands: --image_transfer copy
+----
+
+
+== Cambridge Landmarks
+The Cambridge Landmarks Dataset is available at http://mi.eng.cam.ac.uk/projects/relocalisation/.
+It is released for non-commercial research only.
+It is composed of 6 scenes: King's College, Street, Old Hospital, Shop Facade, St Mary's Church, Trinity Great Court
+
+For each of these you can import the data in kapture from the provided nvm reconstruction. 
+
+=== Convert from original dataset
+
+This example will cover ShopFacade, the same commands can be run on any scene of the dataset.
+
+[source,txt]
+----
+ShopFacade
+├─ dataset_test.txt
+├─ dataset_train.txt
+├─ reconstruction.nvm
+├─ seq1  # image folder
+├─ seq2  # image folder
+├─ seq3  # image folder
+└─ videos # not used when importing to kapture
+----
+
+
+To import it to kapture, you have to replace all `.jpg` to `.png` inside reconstruction.nvm, and cut dataset_test.txt and dataset_train.txt into a simple list of image names.
+
+In bash:
+[source,bash]
+----
+sed 's/.jpg/.png/g' ./ShopFacade/reconstruction.nvm > ./ShopFacade/reconstruction_png.nvm
+tail -n +4 ./ShopFacade/dataset_train.txt > ./ShopFacade/dataset_train_cut.txt
+cut -d\  -f1 ./ShopFacade/dataset_train_cut.txt > ./ShopFacade/dataset_train_list.txt
+tail -n +4 ./ShopFacade/dataset_test.txt > ./ShopFacade/dataset_test_cut.txt
+cut -d\  -f1 ./ShopFacade/dataset_test_cut.txt > ./ShopFacade/dataset_test_list.txt
+----
+
+In powershell
+[source,pwsh]
+----
+Get-Content ./ShopFacade/reconstruction.nvm | %{$_ -replace ".jpg", ".png"} | Set-Content ./ShopFacade/reconstruction_png.nvm
+Get-Content ./ShopFacade/dataset_train.txt | Select-Object -Skip 3 | Set-Content ./ShopFacade/dataset_train_cut.txt
+Get-Content ./ShopFacade/dataset_train_cut.txt | %{ $_.Substring(0,$_.IndexOf(" "))} | Set-Content ./ShopFacade/dataset_train_list.txt
+Get-Content ./ShopFacade/dataset_test.txt | Select-Object -Skip 3 | Set-Content ./ShopFacade/dataset_test_cut.txt
+Get-Content ./ShopFacade/dataset_test_cut.txt | %{ $_.Substring(0,$_.IndexOf(" "))} | Set-Content ./ShopFacade/dataset_test_list.txt
+----
+
+Then run:
+[source,bash]
+----
+# note: on windows, this requires admin rights for symlinks
+# see https://docs.python.org/3.6/library/os.html#os.symlink
+kapture_import_nvm.py -v info -i ./ShopFacade/reconstruction_png.nvm -im ./ShopFacade/ -o ./kapture/ShopFacade/mapping --filter-list ./ShopFacade/dataset_train_list.txt
+kapture_import_nvm.py -v info -i ./ShopFacade/reconstruction_png.nvm -im ./ShopFacade/ -o ./kapture/ShopFacade/query --filter-list ./ShopFacade/dataset_test_list.txt
+
+# if you can't use symlinks, add this to the two kapture_import_nvm.py commands: --image_transfer copy
+----
+
+== Extended-CMU-Seasons
+
+We imported the poses from the text files. The same sliced structure is replicated.
+In the precomputed kapture data, we decided to import all images, even if they are not listed in the text files (they do not have a pose).
+In kapture_import_Extended_CMU_Seasons.py, it corresponds to the option --all-files.
+
+=== Convert from original dataset
+
+Extended-CMU-Seasons is available here: https://data.ciirc.cvut.cz/public/projects/2020VisualLocalization/Extended-CMU-Seasons/
+
+Once downloaded, and all tar files extracted, your Extended-CMU-Seasons directory is like this:
+
+[source,txt]
+----
+Extended-CMU-Seasons
+├─ README_Extended-CMU-Seasons.md
+├─ export_sift_features.py
+├─ intrinsics.txt
+├─ slice2/
+│  ├─ camera-poses/
+│  │  ├─ slice-2-gt-query-images-20100901.txt
+│  │  ├─ ...
+│  ├─ database/
+│  │  ├─ img_00119_c0_1303398474779439us.jpg
+│  │  ├─ ...
+│  ├─ database2.db
+│  ├─ ground-truth-database-images-slice2.txt
+│  ├─ query/
+│  │  ├─ img_00273_c1_1287503834101037us.jpg
+│  │  ├─ ...
+│  ├─ query2.db
+│  ├─ sparse/
+│  │  ├─ cameras.bin
+│  │  ├─ images.bin
+│  │  └─ points3D.bin
+│  └─ test-images-slice2.txt
+├─ slice3/
+├─ slice4/
+├─ ...
+└─ slice25/
+----
+
+To import Extended-CMU-Seasons to kapture, run:
+[source,bash]
+----
+# note: on windows, this requires admin rights for symlinks
+# see https://docs.python.org/3.6/library/os.html#os.symlink
+kapture_import_Extended_CMU_Seasons.py -v info -i ./Extended-CMU-Seasons/ -o ./kapture/Extended-CMU-Seasons/ --image_transfer link_absolute --all-files
+
+# if you can't use symlinks, run
+kapture_import_Extended_CMU_Seasons.py -v info -i ./Extended-CMU-Seasons/ -o ./kapture/Extended-CMU-Seasons/ --image_transfer copy --all-files
+----
+
+
+== InLoc
+
+For the conversion to kapture, we used the provided (cutout) images as well as the camera poses. In detail, the kapture data consists of all cutout images from DUC1 and DUC2 as well as all query images. For now, we do not provide the other buildings (only DUC1 and DUC2 are used for the online benchmark).
+
+InLoc also provides 3D scans for each cutout image. These 3D files can be found in the same folder like the RGB images.
+
+e.g.: image name: DUC_cutout_000_120_30.jpg
+-> corresponding 3D file name: DUC_cutout_000_120_30.jpg.mat
+
+=== Download precomputed kapture data
+
+The original dataset description page can be found here: http://www.ok.sc.e.titech.ac.jp/INLOC/
+
+1a) Download the precomputed kapture data from here: 
+
+- mapping: http://download.europe.naverlabs.com/kapture/InLoc_wo_images_mapping.tar.gz
+- query: http://download.europe.naverlabs.com/kapture/InLoc_wo_images_query.tar.gz
+
+1b) or use the kapture dataset link:tutorial.adoc#download-a-dataset[downloader].
+
+2a) Download the original database images (cutouts) and scans from here: http://www.ok.sc.e.titech.ac.jp/INLOC/materials/cutouts.tar.gz
+
+2b) Or download only the images (no scans) from here: http://www.ok.sc.e.titech.ac.jp/INLOC/materials/cutouts_imageonly.tar.bz2
+
+3) Download the query images from here: http://www.ok.sc.e.titech.ac.jp/INLOC/materials/iphone7.tar.gz
+
+4) Link, copy or move the database and query image folders (which also contain the scans if you downloaded them) to the previously downloaded kapture data (from step 1). Your InLoc folder should look like this:
+
+[source,txt]
+----
+InLoc
+|-- mapping
+|   |-- sensors
+|   |   |-- records_camera.txt
+|   |   |-- sensors.txt
+|   |   |-- trajectories.txt
+|   |   |-- records_data
+|   |   |   |-- DUC1                (from cutouts.tar.gz or cutouts_imageonly.tar.bz2)
+|   |   |   |-- DUC2                (from cutouts.tar.gz or cutouts_imageonly.tar.bz2)
+|   |-- DUC1_alignment (contains some txt files)
+|   |-- DUC2_alignment (contains some txt files)
+|-- query
+|   |-- sensors
+|   |   |-- records_camera.txt
+|   |   |-- sensors.txt
+|   |   |-- records_data
+|   |   |   |-- iphone7             (from iphone7.tar.gz)
+----
+
+5) If you would like to use the Inloc 3D scan data, please read the readme_kapture.txt file we provided with the dataset (from step 1).
+
+== RobotCar_Seasons-v2
+
+Each folder (from 01/ to 49/) contains a kapture dataset for the mapping data (mapping/), and some folders also contain one for the queries (query/).
+They are self-contained (include all data and images related to this location).
+Intrinsics are read from the text files, not the reconstructions.
+For the new training images of v2, we only included the poses for the original data (poses for rear camera only).
+It is possible to get the poses for the other 2 cameras by leveraging the known rig configuration with the function:
+[source,python]
+----
+# in https://github.com/naver/kapture/blob/main/kapture/core/Trajectories.py
+kapture.rigs_recover_inplace(kdata_mapping.trajectories, kdata_mapping.rigs, 'rear') 
+----
+
+=== Convert from original dataset
+
+RobotCar_Seasons is available here: https://data.ciirc.cvut.cz/public/projects/2020VisualLocalization/RobotCar-Seasons/
+To import it into kapture, you'll need these files
+[source,txt]
+----
+RobotCar-Seasons
+├─ 3D-models/
+│  └─ individual/
+│     ├─ colmap_reconstructions/
+│     │  ├─ 001_aligned/
+│     │  │  ├─ cameras.txt
+│     │  │  ├─ images.txt
+│     │  │  └─ points3D.txt
+│     │  ├─ 002_aligned/
+│     │  ├─ ...
+│     │  └─ 049_aligned/
+│     └─ queries_per_location/
+│        ├─ queries_location_001.txt
+│        ├─ queries_location_002.txt
+│        ├─ ...
+│        └─ queries_location_049.txt
+├─ LICENSE.txt
+├─ README_RobotCar-Seasons.md
+├─ README_RobotCar_v2.md
+├─ extrinsics/
+│  ├─ left_extrinsics.txt
+│  ├─ rear_extrinsics.txt
+│  └─ right_extrinsics.txt
+├─ images/
+├─ intrinsics/
+│  ├─ left_intrinsics.txt
+│  ├─ rear_intrinsics.txt
+│  └─ right_intrinsics.txt	
+├─ robotcar_v2_test.txt
+└─ robotcar_v2_train.txt
+----
+
+To import RobotCar-Seasons-v2 to kapture, run:
+[source,bash]
+----
+# note: on windows, this requires admin rights for symlinks
+# see https://docs.python.org/3.6/library/os.html#os.symlink
+kapture_import_RobotCar_Seasons.py -v debug -i ./RobotCar-Seasons -o ./kapture/RobotCar-Seasons-v2 --skip_reconstruction
+
+# if you can't use symlinks, add this to the command: --image_transfer copy
+----
+
+With additional options, you can:
+
+- `--v1`, import RobotCar-Seasons-v1 (deprecated) instead of v2
+- `--rig_collapse` replace camera poses with rig poses
+- `--use_colmap_intrinsics` replace the individual mapping intrinsics with the SIMPLE_RADIAL model from the colmap reconstructions
+- `--import_feature_db` also import `3D-models/overcast-reference.db` into one single `mapping` kapture folder
+
+
+== SILDa
+
+For the conversion to kapture, we used the provided images as well as the camera poses.
+
+.Fisheye cameras
+Cameras used for SILDA are fisheye cameras, with a wide field of view.
+The creator of the dataset defines their own camera model suited for fisheye and
+the associated parameters. Nevertheless, we are not able to convert this custom camera model
+into kapture. Consequently, we choose to use standard camera model (FOV) fitting
+the SILDA's fisheyes. We also provides the re-estimated parameters for the FOV model.
+
+.Rig
+The SILDA camera is a 2-lens rig, and is converted ensuring timestamps of both
+camera are identical for images taken simultaneously. A theoretical rig configuration
+is also provided in rigs.txt. But the rig constraint is not used is the pose estimation.
+
+
+=== Convert from original dataset
+
+1) Download the original dataset
+
+The authors provide a bash script `download.sh` to download all the available data for SILDa.
+See the https://github.com/abmmusa/silda for more details.
+
+[source,bash]
+----
+cd /your/working/dataset/directory  # replace the path
+curl -L https://github.com/abmmusa/silda/raw/master/download.sh -o download.sh
+chmod +x download.sh
+./download.sh  # <  total of around 60GB data will be downloaded
+----
+
+or you can download only data relevant to kapture, applying the following command in bash terminal:
+
+[source,bash]
+----
+mkdir -p ./data/SILDa
+# Downloading full spherical images
+wget -O im1 -L https://imperialcollegelondon.box.com/shared/static/ce2kkt0j4uir9tpzcxx55lhfr05bbjx9
+wget -O im2 -L https://imperialcollegelondon.box.com/shared/static/j4rx03ymwajz98wsfgbocrurwjq4l68h
+cat im* > silda-images.tgz
+tar xvzf silda-images.tgz
+mv silda-images ./data/SILDa/
+rm im1 im2 silda-images.tgz
+
+# Downloading camera intrinsics
+wget -O camera-intrinsics.tar.xz -L https://imperialcollegelondon.box.com/shared/static/pug92l2sw2n375eqrqo92j63p5qm5dqo.xz
+tar xvf camera-intrinsics.tar.xz
+mv camera-intrinsics ./data/SILDa/
+rm camera-intrinsics.tar.xz
+
+# Download camera poses for the train images
+wget -O silda-train-poses.txt -L https://imperialcollegelondon.box.com/shared/static/jr67j3uw8sz97j4vw8la3j3vbhzfwpnz.txt
+mv silda-train-poses.txt ./data/SILDa/
+
+# Download train and test images split
+wget -O train_imgs.txt -L https://imperialcollegelondon.box.com/shared/static/m71jx5h09heygzttn85v96z6ouz03dbv.txt
+wget -O query_imgs.txt -L https://imperialcollegelondon.box.com/shared/static/hfa2l5lw86asskjv6efp8lvoipc8elc8.txt
+mv train_imgs.txt query_imgs.txt ./data/SILDa/
+----
+
+You should have:
+
+----
+./data/SILDa/
+├── camera-intrinsics/
+├── query_imgs.txt
+├── silda-images/
+├── silda-train-poses.txt
+└── train_imgs.txt
+----
+
+2) Import into kapture format
+
+[source,bash]
+----
+# mapping query
+kapture_import_silda.py -v info --image_transfer copy -i ./data/SILDa -o ./kapture/mapping --corpus mapping
+kapture_import_silda.py -v info --image_transfer copy -i ./data/SILDa -o ./kapture/query --corpus query
+# uncomment the following, if you want the both mapping and query in the same dataset
+# kapture_import_silda.py -v info --image_transfer copy -i ./data/SILDa -o ./kapture/mapping_query
+# then [optionally] clean original
+rm -rf ./data/SILDa
+----
+
+You should end up with:
+
+----
+./kapture
+├── mapping
+│   └── sensors
+│       ├── records_camera.txt
+│       ├── records_data/
+│       ├── rigs.txt
+│       ├── sensors.txt
+│       └── trajectories.txt
+└── query
+    └── sensors
+        ├── records_camera.txt
+        ├── records_data/
+        ├── rigs.txt
+        ├── sensors.txt
+        └── trajectories.txt
+----
+
+With additional options, you can:
+
+- `--cam_model`, choose the camera model (`FOV` or `OPENCV_FISHEYE`)
+- `--split_cams` tell the importer to reorganise image files using `<cam_id>/<timestamp:04d>.jpg` template,
+- `--rig_collapse` replace camera poses with rig poses.
+
+
+== Virtual Gallery
+
+The Virtual Gallery dataset is a synthetic dataset that targets multiple challenges such as varying lighting conditions and different occlusion.
+It is available at https://europe.naverlabs.com/research/3d-vision/virtual-gallery-dataset/ under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License.
+
+=== Convert from original dataset
+
+Once downloaded and untared; the dataset is:
+----
+virtual_gallery # input_root
+├── training
+│   └── gallery_lightX_loopY
+│       └── extrinsic.txt # extrinsics for each image
+│       └── intrinsic.txt # intrinsics for each image, always the same
+│       └── frames
+│               └── rgb
+│                   └── camera_Z
+│                       └── rgb_00229.jpg  # images
+└── testing/
+    └── gallery_lightX_occlusionW
+        └── extrinsic.txt # extrinsics for each image
+        └── intrinsic.txt # intrinsics for each image, always the same
+        └── frames
+                └── rgb
+                    └── camera_0
+                        └── rgb_00229.jpg  # images
+
+where X ∈ [1, 6] and represent one of 6 different lighting condition.
+Y ∈ [1, 5] and represent one of 5 different camera trajectories (loop).
+Z ∈ [1, 6] and represent one of 6 different cameras (viewpoint).
+----
+
+To import Virtual Gallery to kapture, run:
+[source,bash]
+----
+# note: on windows, this requires admin rights for symlinks
+# see https://docs.python.org/3.6/library/os.html#os.symlink
+kapture_import_virtual_gallery.py -v debug -i ./virtual_gallery -o ./kapture/virtual_gallery/mapping -c training --as-rig --image_transfer link_absolute
+kapture_import_virtual_gallery.py -v debug -i ./virtual_gallery -o ./kapture/virtual_gallery/query -c testing --image_transfer link_absolute
+
+# if you can't use symlinks, resplace --image_transfer link_absolute with --image_transfer copy in both commands
+----
+
+With additional options, you can:
+
+- `--light-range` list lighting condition to import
+- `--loop-range` list training loops to import
+- `--camera-range` list training cameras to import
+- `--occlusion-range` list testing occlusion levels to import
