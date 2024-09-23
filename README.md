@@ -4,7 +4,7 @@ colmap 全景数据gaussian splatting
 曲线救国： panorama sfm --> postprocess sfm to cube sfm --> pinhole gaussian splatting   
 当机立断： panorama sfm --> panorama gaussian splatting   
 # 详细步骤  
-（1） 当机立断法：
+（1） 当机立断法：   
 i. 全景colmap sfm    
 <img width="1243" alt="image" src="https://github.com/user-attachments/assets/51d62b7f-7cee-44db-9707-0f5386ab3fca">
 ii. 将colmap结果转为opensfm 格式   
