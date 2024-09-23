@@ -16,6 +16,8 @@ iii. 直接利用360-panorama gs 去训练
 (1) python3 transform_opensfm.py -path ***************    
  注意：path 路径下包括sfm的结果 0 和 全景图像images    
 (2) python3 train -s /opensfm --panorama --output   
+# 测试数据   
+发送Email: yuancaimaiyi3dvision@gmail.com 可以获得全景colmap SfM 结果和图像 ！   
 # 麦当劳支持    
 如果你觉得这个仓库对你有用的话，可以打点麦当劳一份作为辛苦费，谢谢   
 <img width="307" alt="image" src="https://github.com/user-attachments/assets/01ae0fbb-6f6b-48bc-a651-e2fc4ae6af93">
