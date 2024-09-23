@@ -13,4 +13,6 @@ iii. 直接利用360-panorama gs 去训练
 
 # 麦当劳支持    
 如果你觉得这个仓库对你有用的话，可以打点麦当劳一份作为辛苦费，谢谢   
+<img width="307" alt="image" src="https://github.com/user-attachments/assets/01ae0fbb-6f6b-48bc-a651-e2fc4ae6af93">
+
 
